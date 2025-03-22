@@ -2,8 +2,14 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const isDev = require('electron-is-dev');
 const url = require('url');
+const axios = require('axios');
+
+process.env.NODE_OPTIONS = '--dns-result-order=ipv4first';
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 
 let mainWindow;
+const PYTHON_API_URL = 'http://localhost:8080';
+
 
 function createMainWindow() {
   mainWindow = new BrowserWindow({
@@ -16,8 +22,8 @@ function createMainWindow() {
     }
   });
 
-  const startUrl = isDev 
-    ? 'http://localhost:3000' 
+  const startUrl = isDev
+    ? 'http://localhost:3000'
     : url.format({
         pathname: path.join(__dirname, '../dist/index.html'),
         protocol: 'file:',
@@ -50,18 +56,28 @@ app.on('activate', () => {
     createMainWindow();
   }
 });
-
-// Sample IPC communication
 ipcMain.handle('get-user-data', async () => {
-  // In a real app, this could come from a database or file
-  return {
-    name: 'John Doe',
-    email: 'john@example.com',
-    lastLogin: new Date().toISOString()
-  };
+  try {
+    const response = await axios.get(`${PYTHON_API_URL}/api/user-data`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching user data from Python backend:', error);
+    return {
+      name: 'Offline User',
+      email: 'offline@example.com',
+      lastLogin: new Date().toISOString()
+    };
+  }
 });
 
 ipcMain.handle('navigate-to-screen', async (event, screenName) => {
-  // You could do some processing here before navigation
-  return { success: true, screen: screenName };
+  try {
+    const response = await axios.post(`${PYTHON_API_URL}/api/navigate`, {
+      screen: screenName
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error connecting to Python backend for navigation:', error);
+    return { success: true, screen: screenName };
+  }
 });
